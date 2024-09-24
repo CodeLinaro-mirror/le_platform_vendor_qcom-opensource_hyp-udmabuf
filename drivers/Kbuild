@@ -1,0 +1,6 @@
+LINUXINCLUDE += -I$(HYP_UDMABUF_ROOT)/include/uapi \
+		-I$(KERNEL_SRC)/include \
+
+hyp-udmabuf-y := hyp_udmabuf.o
+
+obj-m := hyp-udmabuf.o
