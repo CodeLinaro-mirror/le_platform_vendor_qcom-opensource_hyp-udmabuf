@@ -177,7 +177,8 @@ static long hyp_udmabuf_create(struct miscdevice *device,
 		/* TODO: check memory regions against GVM memory space */
 		if (PAGE_ALIGNED(region->addr) &&
 			(PAGE_ALIGNED(region->len) ||
-			 (i == head->count - 1))) {
+			 (i == head->count - 1)) &&
+			 guest_size < ULLONG_MAX - region->len) {
 			/* allow unaligned bytes in last page */
 			guest_size += region->len;
 			pr_debug("Create region[%d] paddr 0x%llx size 0x%llx\n",
