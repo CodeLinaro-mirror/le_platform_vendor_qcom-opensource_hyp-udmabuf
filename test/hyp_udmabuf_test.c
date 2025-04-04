@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
@@ -24,15 +24,16 @@
 #define MAX_SUPPORTED_THREADS_NUM 64
 #define MAX_SUPPORTED_SMMU_MAP_COUNT 64
 #define MAX_SUPPORTED_CPU_MAP_COUNT 64
+#define MAX_DEVICE_NAME_LEN 32
 
 
 static int timeout = -1;
-static int num_threads = 0;
+static int num_threads = 1;
 static int smmu_map_count = 10;
 static int cpu_map_count = 10;
 static int fd = -1;
 
-static int page_sgl_nents = -1;
+static int page_sgl_nents = 3;
 static struct plat_vfio pvfio;
 static struct guest_mem_region *page_sgl_table = NULL;
 
@@ -56,6 +57,24 @@ static void close_device(int fd)
 		close(fd);
 }
 
+static int hyp_udmabuf_test_set_default_config()
+{
+	page_sgl_table = malloc(sizeof(struct guest_mem_region) * page_sgl_nents);
+	if (!page_sgl_table) {
+		printf("malloc page_sgl_table failed\n");
+		return -ENOMEM;
+	}
+
+	page_sgl_table[0].addr  = 0xf3640000;
+	page_sgl_table[0].len = 0x10000;
+	page_sgl_table[1].addr  = 0x1acdf1000;
+	page_sgl_table[1].len = 0x1000;
+	page_sgl_table[2].addr  = 0x20d98c000;
+	page_sgl_table[2].len = 0x1000;
+
+	return 0;
+}
+
 static int hyp_udmabuf_test_config_init()
 {
 	static const char *config_file = CONFIG_FILE_PATH;
@@ -70,7 +89,7 @@ static int hyp_udmabuf_test_config_init()
 
 	nErr = stat(config_file, &st);
 	if (nErr)
-		goto bail;
+		return hyp_udmabuf_test_set_default_config();
 
 	len = st.st_size + 1;
 	fp = fopen(config_file, "r");
@@ -131,7 +150,6 @@ static int hyp_udmabuf_test_config_init()
 	free(buf);
 	fclose(fp);
 	return 0;
-
 bail:
 	if (buf) {
 		free(buf);
@@ -177,12 +195,12 @@ static int create_dmabuf_fd(int device, int *fd, uint64_t *size)
 	return 0;
 }
 
-static int get_vfio_fd(struct plat_vfio * vfio, int iommu_grp)
+static int get_vfio_fd(const char *device_name, struct plat_vfio *vfio, int iommu_grp)
 {
 	int ret = 0;
 
 	/* "17c23000.vfio_timer" is from smmulib's unit_tests */
-	ret = plat_vfio_device_init("17c23000.vfio_timer", vfio);
+	ret = plat_vfio_device_init(device_name, vfio);
 	if (ret < 0) {
 		printf("\n Failed to initalize the vfio device\n");
 		return -ENODEV;
@@ -285,15 +303,16 @@ static int T32_test_case(void)
 void print_usage(void) {
 	printf("usage:\n\n"
 			"  Recommended:\n"
-			"      ./hyp_udmabuf_test -t 10 -n 10 -s 20 -c 20\n\n"
+			"     ./hyp_udmabuf_test -D 17c23000.vfio_timer -t 10 -n 10 -s 20 -c 20\n\n"
 			"  Options:\n\n"
+			"  -D: device to use (default 17c23000.vfio_timer)\n\n"
 			"  -t: Time (s) break in debugger now to see if CB is populated with the appropriate PGT.\n\n"
 			"  -n: Number of threads to create.\n\n"
 			"  -s: Test times for smmu map.\n\n"
 			"  -c: Test times for cpu map.\n\n"
 			"  Example:\n"
 			"  ./hyp_udmabuf_test -t 10\n\n"
-			"  ./hyp_udmabuf_test -t 10 -n 10 -s 20 -c 20\n\n"
+			"  ./hyp_udmabuf_test -D 17c23000.vfio_timer -t 10 -n 10 -s 20 -c 20\n\n"
 			);
 }
 
@@ -304,12 +323,18 @@ int main(int argc, char *argv[])
 	pthread_t *threads = NULL;
 	int *thread_ids = NULL;
 	void *thread_ret;
+	char device_name[MAX_DEVICE_NAME_LEN] = {0};
+	/* set defualt device name to 17c23000.vfio_timer */
+	snprintf(device_name, MAX_DEVICE_NAME_LEN, "17c23000.vfio_timer");
 
 	if(argc == 1) {
 		printf("Hyp-udmabuf test start with default parameters\n");
 	} else {
-		while ((opt = getopt(argc, argv, ":t:n:s:c:")) != -1) {
+		while ((opt = getopt(argc, argv, "D:t:n:s:c:")) != -1) {
 			switch(opt) {
+				case 'D':
+					snprintf(device_name, MAX_DEVICE_NAME_LEN, "%s", optarg);
+					break;
 				case 't':
 					timeout = atoi(optarg);
 					if(timeout <= 0 || timeout > MAX_SUPPORTED_TIME_OUT) {
@@ -349,8 +374,8 @@ int main(int argc, char *argv[])
 					goto bail;
 			}
 		}
-		printf("Hyp-udmabuf test start with timeout=%d, num_threads=%d, smmu_map_count=%d, cpu_map_count=%d\n",
-				timeout, num_threads, smmu_map_count, cpu_map_count);
+		printf("Hyp-udmabuf test start with device_name=%s, timeout=%d, num_threads=%d, smmu_map_count=%d, cpu_map_count=%d\n",
+				device_name, timeout, num_threads, smmu_map_count, cpu_map_count);
 	}
 
 	threads = malloc(num_threads * sizeof(pthread_t));
@@ -374,7 +399,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Get plat_vfio struct for device for known IOMMU group ID */
-	nErr = get_vfio_fd(&pvfio, 0);
+	nErr = get_vfio_fd(device_name, &pvfio, 0);
 	if (nErr < 0) {
 		goto bail;
 	}
