@@ -1,0 +1,2 @@
+lib/modules/*
+usr/lib/modules-load.d/hyp-udmabuf.conf

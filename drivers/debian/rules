@@ -1,0 +1,26 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+export KERNEL_SRC := /usr/src/kernel/
+export M := $(CURDIR)
+export KBUILD_OPTIONS := KCFLAGS=" \
+    -I/usr/src/kernel/drivers/firmware \
+    -I/usr/src/kernel/include/linux \
+    -I$(CURDIR)/include/uapi \
+    "
+
+override_dh_auto_install:
+	dh_auto_install --destdir=$(CURDIR)/debian/tmp
+	make -C $(KERNEL_SRC) M=$(M) \
+		INSTALL_MOD_PATH=$(CURDIR)/debian/tmp modules_install
+	install -d debian/tmp/usr/lib/modules-load.d/
+	install -m 0755 hyp-udmabuf.conf \
+		debian/tmp/usr/lib/modules-load.d/hyp-udmabuf.conf
+	install -d debian/tmp/usr/include/linux/
+	install -m 0644 include/uapi/linux/hyp_udmabuf.h \
+		debian/tmp/usr/include/linux/hyp_udmabuf.h
+
+.PHONY: clean
+clean:

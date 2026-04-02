@@ -1,0 +1,19 @@
+Source: hyp-udmabuf
+Section: devel
+Priority: optional
+Maintainer: xrao <xrao@qti.qualcomm.com>
+Build-Depends: debhelper-compat (= 13), linux-qcom-source, kmod
+Standards-Version: 4.6.0
+Homepage: https://git.codelinaro.org
+
+Package: hyp-udmabuf
+Architecture: arm64
+Description: Hyp udmabuf Kernel Modules
+ This is the hyp udmabuf driver used to share dmabufs cross VMs.
+
+Package: hyp-udmabuf-dev
+Architecture: arm64
+Section: libdevel
+Depends: hyp-udmabuf (= ${binary:Version})
+Description: Hyp udmabuf development headers
+ Development headers for the hyp udmabuf driver kernel module.

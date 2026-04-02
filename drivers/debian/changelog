@@ -1,0 +1,7 @@
+hyp-udmabuf (1.0.0) noble; urgency=medium
+
+  * Converted from Yocto bb file (hyp-udmabuf_git.bb).
+  * Package provides hyp-udmabuf out-of-tree kernel module for sharing
+    dmabufs cross VMs.
+
+ -- xrao <xrao@qti.qualcomm.com> Wed, 02 Apr 2026 06:45:00 +0000
